@@ -8,11 +8,11 @@ load_dotenv()
 def get_connection():
     try:
         conn = mysql.connector.connect(
-    host=os.getenv("DB_HOST"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD"),
-    database=os.getenv("DB_NAME"),
-)
+            host=os.getenv("DB_HOST"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME"),
+        )
         return conn
     except mysql.connector.Error as err:
         print(f"Error connecting to database: {err}")
@@ -111,17 +111,20 @@ def update_leave_status(request_id, status, decided_by):
     if not conn:
         return False
 
-    cursor = conn.cursor(dictionary=True)
+    # Use a dictionary cursor only for the SELECT
+    read_cursor = conn.cursor(dictionary=True)
+    read_cursor.execute("SELECT * FROM leave_requests WHERE id = %s", (request_id,))
+    request = read_cursor.fetchone()
+    read_cursor.close()
 
-    # Fetch the request first so we know employee_id, leave_type, and duration
-    cursor.execute("SELECT * FROM leave_requests WHERE id = %s", (request_id,))
-    request = cursor.fetchone()
     if not request:
-        cursor.close()
         conn.close()
         return False
 
-    cursor.execute(
+    # Use a plain cursor for all writes
+    write_cursor = conn.cursor()
+
+    write_cursor.execute(
         """UPDATE leave_requests
            SET status = %s, decided_by = %s, decided_on = NOW()
            WHERE id = %s""",
@@ -139,7 +142,7 @@ def update_leave_status(request_id, status, decided_by):
         }
         column = column_map.get(leave_type)
         if column:
-            cursor.execute(
+            write_cursor.execute(
                 f"""UPDATE employees
                     SET {column} = {column} - %s
                     WHERE id = %s""",
@@ -147,15 +150,6 @@ def update_leave_status(request_id, status, decided_by):
             )
 
     conn.commit()
-    cursor.close()
+    write_cursor.close()
     conn.close()
     return True
-
-
-if __name__ == "__main__":
-    conn = get_connection()
-    if conn:
-        print("Connected successfully")
-        conn.close()
-    else:
-        print("Connection failed")
