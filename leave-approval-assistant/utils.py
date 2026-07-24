@@ -1,5 +1,6 @@
 from datetime import date
 import bcrypt
+from leave_types import LEAVE_TYPES
 
 
 def validate_date_range(start_date, end_date):
@@ -24,9 +25,10 @@ def check_password(plain_password, hashed_password):
 
 
 def format_balance_summary(employee):
-    """Takes an employee dict (from db.py) and returns a readable balance string."""
-    return (
-        f"Sick: {employee.get('sick_leave_balance', 0)} days | "
-        f"Casual: {employee.get('casual_leave_balance', 0)} days | "
-        f"Paid: {employee.get('paid_leave_balance', 0)} days"
-    )
+    """Takes an employee dict (from db.py) and returns a readable balance string
+    covering all leave types defined in leave_types.py."""
+    parts = [
+        f"{lt['display']}: {employee.get(lt['column'], 0)} days"
+        for lt in LEAVE_TYPES
+    ]
+    return " | ".join(parts)
